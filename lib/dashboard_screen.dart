@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'login_screen.dart';
 import 'manage_work_screen.dart';
-import 'add_device_screen.dart';         // New page import
-import 'approve_reject_screen.dart';     // New page import
+import 'add_device_screen.dart';
+import 'approve_reject_screen.dart';
+import 'profile_screen.dart';
+import 'user_profile_provider.dart';
+import 'services/session_manager.dart';
 
 class DashboardScreen extends StatelessWidget {
-  final bool isAdmin;
-  DashboardScreen({this.isAdmin = true}); // Pass true for admin users
+  DashboardScreen(); // Remove the isAdmin parameter
+
+  // Helper method to check if user has admin privileges
+  bool _hasAdminAccess(UserProfile userProfile) {
+    final roleName = userProfile.roleName.toLowerCase();
+    final isSuperadmin = userProfile.isSuperadmin;
+    
+    // Check if user is Super Admin or has Admin role
+    return isSuperadmin || 
+           roleName.contains('admin') || 
+           roleName.contains('administrator');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,12 +60,23 @@ class DashboardScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        icon: Icon(Icons.logout),
-        label: Text('Logout'),
-        backgroundColor: Colors.red,
-        onPressed: () {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LoginScreen()));
+      floatingActionButton: Consumer<UserProfile>(
+        builder: (context, userProfile, child) {
+          return FloatingActionButton.extended(
+            icon: Icon(Icons.logout),
+            label: Text('Logout'),
+            backgroundColor: Colors.red,
+            onPressed: () async {
+              await userProfile.logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => LoginScreen()),
+                  (route) => false,
+                );
+              }
+            },
+          );
         },
       ),
       body: Column(
@@ -71,11 +96,52 @@ class DashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Welcome, Junior Engineer', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                SizedBox(height: 8),
-                Text('Manage and monitor feeder network operation', style: TextStyle(color: Colors.white70, fontSize: 16)),
-                SizedBox(height: 8),
-                Text('KESKO Smart Grid', style: TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Consumer<UserProfile>(
+                            builder: (context, userProfile, child) {
+                              return Text(
+                                'Welcome, ${userProfile.username.isNotEmpty ? userProfile.username : SessionManager.displayName}',
+                                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                              );
+                            },
+                          ),
+                          SizedBox(height: 8),
+                          Text('Manage and monitor feeder network operation', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                          SizedBox(height: 8),
+                          Consumer<UserProfile>(
+                            builder: (context, userProfile, child) {
+                              return Text(
+                                '${userProfile.utilityName.isNotEmpty ? userProfile.utilityName : SessionManager.utilityName}',
+                                style: TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Profile Icon Button
+                    CircleAvatar(
+                      radius: 25,
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      child: IconButton(
+                        icon: Icon(Icons.person, color: Colors.white, size: 25),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProfileScreen()),
+                          );
+                        },
+                        tooltip: 'View Profile',
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -96,28 +162,55 @@ class DashboardScreen extends StatelessWidget {
   },
 ),
 
-if (isAdmin) ...[
-  bigButton(
-    text: 'Add New Device',
-    subtext: 'Register new smart grid device',
-    icon: Icons.add_box,
-    color: Colors.green.shade100,
-    textColor: Colors.green.shade700,
-    onTap: () {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => AddDeviceScreen()));
-    },
-  ),
-  bigButton(
-    text: 'Approve / Reject',
-    subtext: 'Approve and reject users request',
-    icon: Icons.check_circle_outline,
-    color: Colors.indigo.shade100,
-    textColor: Colors.indigo.shade700,
-    onTap: () {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => ApproveRejectScreen()));
-    },
-  ),
-],
+bigButton(
+  text: 'My Profile',
+  subtext: 'View account details and settings',
+  icon: Icons.account_circle,
+  color: Colors.blue.shade100,
+  textColor: Colors.blue.shade700,
+  onTap: () {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen()));
+  },
+),
+
+// Admin-only buttons with role-based access control
+Consumer<UserProfile>(
+  builder: (context, userProfile, child) {
+    if (!_hasAdminAccess(userProfile)) {
+      return SizedBox.shrink(); // Hide admin buttons for non-admin users
+    }
+    
+    return bigButton(
+      text: 'Add New Device',
+      subtext: 'Register new smart grid device',
+      icon: Icons.add_box,
+      color: Colors.green.shade100,
+      textColor: Colors.green.shade700,
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => AddDeviceScreen()));
+      },
+    );
+  },
+),
+
+Consumer<UserProfile>(
+  builder: (context, userProfile, child) {
+    if (!_hasAdminAccess(userProfile)) {
+      return SizedBox.shrink(); // Hide admin buttons for non-admin users
+    }
+    
+    return bigButton(
+      text: 'Approve / Reject',
+      subtext: 'Approve and reject users request',
+      icon: Icons.check_circle_outline,
+      color: Colors.indigo.shade100,
+      textColor: Colors.indigo.shade700,
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ApproveRejectScreen()));
+      },
+    );
+  },
+),
 
           SizedBox(height: 80),
         ],
