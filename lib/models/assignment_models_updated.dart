@@ -126,13 +126,13 @@ class AssignmentRequest {
   final String purpose;
   final int substationId;
   final List<ShutdownAssignment> shutdowns;
-  final String assignedBy; // Field for storing the email of the user making the assignment
+  final String assignedBy; // New field for storing assigner's email
 
   AssignmentRequest({
     required this.purpose,
     required this.substationId,
     required this.shutdowns,
-    required this.assignedBy,
+    required this.assignedBy, // New required field
   });
 
   Map<String, String> toFormData() {
@@ -140,7 +140,7 @@ class AssignmentRequest {
       'purpose': purpose,
       'substation': substationId.toString(),
       'shutdown_count': shutdowns.length.toString(),
-      'assigned_by': assignedBy,
+      'assigned_by': assignedBy, // Add assigned_by to form data
     };
 
     for (int i = 0; i < shutdowns.length; i++) {
@@ -159,6 +159,7 @@ class AssignmentRequest {
     print('=== ASSIGNMENT FORM DATA (No SSO/JE) ===');
     print('Purpose: ${formData['purpose']}');
     print('Substation ID: ${formData['substation']}');
+    print('Assigned By: ${formData['assigned_by']}');
     print('Shutdown Count: ${formData['shutdown_count']}');
     for (int i = 1; i <= shutdowns.length; i++) {
       print('Shutdown $i:');

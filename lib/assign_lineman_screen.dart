@@ -28,17 +28,12 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
   int? _selectedFeederId;
   
   // Assignment details
-  int? _selectedSsoId;
-  int? _selectedJeId;
-  String? _selectedSsoName;  // Added to store SSO name
-  String? _selectedJeName;   // Added to store JE name
   DateTime? _startTime;
   DateTime? _endTime;
   
-  // SSO and JE data
-  List<SubstationUser> _availableSsos = [];
-  List<SubstationUser> _availableJes = [];
-  bool _isUsersLoading = false;
+  // Duration inputs
+  final TextEditingController _durationHoursController = TextEditingController(text: '2');
+  final TextEditingController _durationMinutesController = TextEditingController(text: '0');
   
   // Available linemen
   List<AvailableLineman> _availableLinemen = [];
@@ -59,11 +54,16 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
     super.initState();
     _initializeData();
     _searchController.addListener(_filterLinemen);
+    _durationHoursController.addListener(_calculateEndTime);
+    _durationMinutesController.addListener(_calculateEndTime);
+    // Don't set start time here - it will be set when feeder is selected
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _durationHoursController.dispose();
+    _durationMinutesController.dispose();
     super.dispose();
   }
   
@@ -101,9 +101,7 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
             await _loadSubstationName(userSubstationId);
             await _loadFeedersForSubstation(userSubstationId);
             
-            print('About to load substation users for predefined substation...');
-            await _loadSubstationUsers(userSubstationId);  // Load SSO and JE users for predefined substation
-            print('Finished loading substation users for predefined substation');
+
           }
         } else {
           print('User has no predefined utility - enabling utility dropdown');
@@ -170,62 +168,7 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
     });
   }
 
-  Future<void> _loadSubstationUsers(int substationId) async {
-    print('=== LOADING SUBSTATION USERS ===');
-    print('Substation ID: $substationId');
-    
-    setState(() {
-      _isUsersLoading = true;
-      _availableSsos = [];
-      _availableJes = [];
-      _selectedSsoId = null;
-      _selectedJeId = null;
-      _selectedSsoName = null;  // Reset SSO name
-      _selectedJeName = null;   // Reset JE name
-    });
-    
-    try {
-      print('Calling LinemanService.getSubstationUsers...');
-      final response = await LinemanService.getSubstationUsers(substationId);
-      
-      print('API Response: $response');
-      
-      if (response['success']) {
-        print('Response successful, parsing data...');
-        final usersData = SubstationUsersResponse.fromJson(response['data']);
-        print('SSO count: ${usersData.sso.length}');
-        print('JE count: ${usersData.je.length}');
-        
-        if (usersData.sso.isNotEmpty) {
-          print('SSO users:');
-          usersData.sso.forEach((sso) => print('  - ${sso.name} (ID: ${sso.id})'));
-        }
-        
-        if (usersData.je.isNotEmpty) {
-          print('JE users:');
-          usersData.je.forEach((je) => print('  - ${je.name} (ID: ${je.id})'));
-        }
-        
-        setState(() {
-          _availableSsos = usersData.sso;
-          _availableJes = usersData.je;
-        });
-        
-        print('State updated with ${_availableSsos.length} SSOs and ${_availableJes.length} JEs');
-      } else {
-        print('API returned error: ${response['message']}');
-        _showErrorMessage(response['message'] ?? 'Failed to load substation users');
-      }
-    } catch (e) {
-      print('Exception in _loadSubstationUsers: $e');
-      _showErrorMessage('Error loading substation users: $e');
-    } finally {
-      setState(() {
-        _isUsersLoading = false;
-      });
-      print('=== SUBSTATION USERS LOADING COMPLETE ===');
-    }
-  }
+
 
   void _onUtilityChanged(int? utilityId) {
     setState(() {
@@ -254,7 +197,6 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
     
     if (substationId != null) {
       _loadFeedersForSubstation(substationId);
-      _loadSubstationUsers(substationId); // Load SSO and JE users when substation changes
     }
   }
   
@@ -263,12 +205,48 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
       _selectedFeederId = feederId;
       _availableLinemen = [];
       _filteredLinemen = [];
+      // Set start time to current time when feeder is selected
+      if (feederId != null) {
+        _startTime = DateTime.now();
+        _calculateEndTime();
+      } else {
+        _startTime = null;
+        _endTime = null;
+      }
     });
+    
+    // Auto-load available linemen when feeder is selected
+    if (feederId != null && _selectedSubstationId != null) {
+      _loadAvailableLinemen();
+    }
+  }
+  
+  /// Calculate end time based on start time and duration
+  void _calculateEndTime() {
+    if (_startTime == null) return;
+    
+    final hours = int.tryParse(_durationHoursController.text) ?? 0;
+    final minutes = int.tryParse(_durationMinutesController.text) ?? 0;
+    
+    final duration = Duration(hours: hours, minutes: minutes);
+    
+    setState(() {
+      _endTime = _startTime!.add(duration);
+    });
+    
+    // Reload available linemen if we have all required data
+    if (_startTime != null && _endTime != null && _selectedSubstationId != null && _selectedFeederId != null) {
+      _loadAvailableLinemen();
+    }
   }
 
   Future<void> _loadAvailableLinemen() async {
-    if (_selectedSubstationId == null || _startTime == null || _endTime == null) {
-      _showErrorMessage('Please select substation, start time, and end time first');
+    if (_selectedSubstationId == null || _selectedFeederId == null || _startTime == null || _endTime == null) {
+      print('Missing required data for loading linemen:');
+      print('Substation ID: $_selectedSubstationId');
+      print('Feeder ID: $_selectedFeederId');
+      print('Start Time: $_startTime');
+      print('End Time: $_endTime');
       return;
     }
     
@@ -282,6 +260,11 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
       final startTimeStr = _startTime!.toIso8601String().substring(0, 19);
       final endTimeStr = _endTime!.toIso8601String().substring(0, 19);
       
+      print('Loading available linemen with:');
+      print('Substation ID: $_selectedSubstationId');
+      print('Start Time: $startTimeStr');
+      print('End Time: $endTimeStr');
+      
       final response = await LinemanService.getAvailableLinemen(
         substationId: _selectedSubstationId!,
         startTime: startTimeStr,
@@ -293,6 +276,7 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
           _availableLinemen = response.linemen;
           _filteredLinemen = List.from(response.linemen);
         });
+        print('Loaded ${response.linemen.length} available linemen');
       } else {
         _showErrorMessage(response.message);
       }
@@ -316,74 +300,17 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
     });
   }
   
-  Future<void> _selectDateTime({required bool isStartTime}) async {
-    final DateTime now = DateTime.now();
-    final DateTime? selectedDate = await showDatePicker(
-      context: context,
-      initialDate: isStartTime 
-          ? (_startTime ?? now.add(Duration(hours: 1)))
-          : (_endTime ?? now.add(Duration(hours: 2))),
-      firstDate: now,
-      lastDate: now.add(Duration(days: 365)),
-    );
-    
-    if (selectedDate != null) {
-      final TimeOfDay? selectedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(
-          isStartTime 
-              ? (_startTime ?? now.add(Duration(hours: 1)))
-              : (_endTime ?? now.add(Duration(hours: 2)))
-        ),
-      );
-      
-      if (selectedTime != null) {
-        final DateTime fullDateTime = DateTime(
-          selectedDate.year,
-          selectedDate.month,
-          selectedDate.day,
-          selectedTime.hour,
-          selectedTime.minute,
-        );
-        
-        setState(() {
-          if (isStartTime) {
-            _startTime = fullDateTime;
-            if (_endTime == null || _endTime!.isBefore(fullDateTime.add(Duration(hours: 1)))) {
-              _endTime = fullDateTime.add(Duration(hours: 2));
-            }
-          } else {
-            _endTime = fullDateTime;
-          }
-        });
-        
-        if (_startTime != null && _endTime != null) {
-          _loadAvailableLinemen();
-        }
-      }
-    }
-  }
+  // ... existing code ...
 
   Future<void> _submitAssignment() async {
     final errors = LinemanService.validateAssignmentData(
       purpose: selectedPurpose,
       substationId: _selectedSubstationId,
       feederId: _selectedFeederId,
-      ssoId: _selectedSsoId,
-      jeId: _selectedJeId,
       selectedLinemenIds: _availableLinemen.where((l) => l.isSelected).map((l) => l.id).toList(),
       startTime: _startTime,
       endTime: _endTime,
     );
-    
-    // Additional validation for SSO and JE names
-    if (_selectedSsoName == null || _selectedSsoName!.trim().isEmpty) {
-      errors['sso'] = 'SSO name is missing - please reselect SSO';
-    }
-    
-    if (_selectedJeName == null || _selectedJeName!.trim().isEmpty) {
-      errors['je'] = 'JE name is missing - please reselect JE';
-    }
     
     if (errors.isNotEmpty) {
       _showErrorMessage(errors.values.first!);
@@ -404,21 +331,17 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
           .toList();
       
       print('=== ASSIGNMENT DEBUG INFO ===');
-      print('Selected SSO ID: $_selectedSsoId, Name: $_selectedSsoName');
-      print('Selected JE ID: $_selectedJeId, Name: $_selectedJeName');
       print('Selected Linemen IDs: $selectedLinemenIds');
+      print('Assigned By: ${SessionManager.email}');
       print('============================');
       
       final assignment = AssignmentRequest(
         purpose: selectedPurpose,
         substationId: _selectedSubstationId!,
+        assignedBy: SessionManager.email, // Add the email of the logged-in user
         shutdowns: [
           ShutdownAssignment(
             feederId: _selectedFeederId!,
-            ssoId: _selectedSsoId!,
-            jeId: _selectedJeId!,
-            ssoName: _selectedSsoName!,
-            jeName: _selectedJeName!,
             linemenIds: selectedLinemenIds,
             startTime: startTimeStr,
             endTime: endTimeStr,
@@ -447,15 +370,13 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
     setState(() {
       selectedPurpose = 'Maintenance';
       _selectedFeederId = null;
-      _selectedSsoId = null;
-      _selectedJeId = null;
-      _selectedSsoName = null;  // Reset SSO name
-      _selectedJeName = null;   // Reset JE name
-      _startTime = null;
+      _startTime = null; // Will be set when feeder is selected
       _endTime = null;
       _availableLinemen = [];
       _filteredLinemen = [];
       _searchController.clear();
+      _durationHoursController.text = '2';
+      _durationMinutesController.text = '0';
     });
   }
   
@@ -483,10 +404,6 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
     return selectedPurpose.isNotEmpty &&
         _selectedSubstationId != null &&
         _selectedFeederId != null &&
-        _selectedSsoId != null &&
-        _selectedJeId != null &&
-        _selectedSsoName != null &&  // Added SSO name check
-        _selectedJeName != null &&   // Added JE name check
         _startTime != null &&
         _endTime != null &&
         _availableLinemen.any((l) => l.isSelected) &&
@@ -521,8 +438,6 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
                   _buildSubstationDropdown(),
                   SizedBox(height: 16),
                   _buildFeederDropdown(),
-                  SizedBox(height: 20),
-                  _buildAssignmentDetailsSection(),
                   SizedBox(height: 20),
                   _buildDateTimeSection(),
                   SizedBox(height: 20),
@@ -640,113 +555,7 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
     );
   }
 
-  Widget _buildAssignmentDetailsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Assignment Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        SizedBox(height: 16),
-        // Use Column layout on smaller screens, Row on larger screens
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth < 600) {
-              // Stack vertically on smaller screens
-              return Column(
-                children: [
-                  _buildSsoDropdown(),
-                  SizedBox(height: 16),
-                  _buildJeDropdown(),
-                ],
-              );
-            } else {
-              // Side by side on larger screens
-              return Row(
-                children: [
-                  Expanded(child: _buildSsoDropdown()),
-                  SizedBox(width: 16),
-                  Expanded(child: _buildJeDropdown()),
-                ],
-              );
-            }
-          },
-        ),
-      ],
-    );
-  }
 
-  Widget _buildSsoDropdown() {
-    return _isUsersLoading
-        ? Container(
-            height: 60,
-            child: Center(child: CircularProgressIndicator()),
-          )
-        : DropdownButtonFormField<int>(
-            value: _selectedSsoId,
-            decoration: InputDecoration(
-              labelText: 'Select SSO',
-              prefixIcon: Icon(Icons.person),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            hint: Text(_selectedSubstationId == null ? 'First select substation' : 'Choose SSO'),
-            items: _availableSsos.map((sso) => DropdownMenuItem<int>(
-              value: sso.id,
-              child: Text(
-                sso.name,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            )).toList(),
-            onChanged: _selectedSubstationId == null ? null : (val) {
-              setState(() {
-                _selectedSsoId = val;
-                // Find the SSO name for the selected ID
-                final selectedSso = _availableSsos.firstWhere(
-                  (sso) => sso.id == val,
-                  orElse: () => SubstationUser(id: 0, name: ''),
-                );
-                _selectedSsoName = selectedSso.name;
-              });
-            },
-            isExpanded: true, // Prevents overflow
-          );
-  }
-
-  Widget _buildJeDropdown() {
-    return _isUsersLoading
-        ? Container(
-            height: 60,
-            child: Center(child: CircularProgressIndicator()),
-          )
-        : DropdownButtonFormField<int>(
-            value: _selectedJeId,
-            decoration: InputDecoration(
-              labelText: 'Select JE',
-              prefixIcon: Icon(Icons.person_outline),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            hint: Text(_selectedSubstationId == null ? 'First select substation' : 'Choose JE'),
-            items: _availableJes.map((je) => DropdownMenuItem<int>(
-              value: je.id,
-              child: Text(
-                je.name,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            )).toList(),
-            onChanged: _selectedSubstationId == null ? null : (val) {
-              setState(() {
-                _selectedJeId = val;
-                // Find the JE name for the selected ID
-                final selectedJe = _availableJes.firstWhere(
-                  (je) => je.id == val,
-                  orElse: () => SubstationUser(id: 0, name: ''),
-                );
-                _selectedJeName = selectedJe.name;
-              });
-            },
-            isExpanded: true, // Prevents overflow
-          );
-  }
 
   Widget _buildDateTimeSection() {
     return Column(
@@ -754,76 +563,161 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
       children: [
         Text('Schedule Time', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         SizedBox(height: 16),
-        // Use Column layout on smaller screens, Row on larger screens
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth < 600) {
-              // Stack vertically on smaller screens
-              return Column(
-                children: [
-                  _buildTimeSelector(isStartTime: true),
-                  SizedBox(height: 16),
-                  _buildTimeSelector(isStartTime: false),
-                ],
-              );
-            } else {
-              // Side by side on larger screens
-              return Row(
-                children: [
-                  Expanded(child: _buildTimeSelector(isStartTime: true)),
-                  SizedBox(width: 16),
-                  Expanded(child: _buildTimeSelector(isStartTime: false)),
-                ],
-              );
-            }
-          },
-        ),
+        // Start time display (current time, read-only)
+        _buildStartTimeDisplay(),
+        SizedBox(height: 16),
+        // Duration inputs
+        _buildDurationInputs(),
+        SizedBox(height: 16),
+        // End time display (read-only)
+        _buildEndTimeDisplay(),
       ],
     );
   }
 
-  Widget _buildTimeSelector({required bool isStartTime}) {
-    final selectedTime = isStartTime ? _startTime : _endTime;
-    final label = isStartTime ? 'Start Time' : 'End Time';
-    final placeholder = isStartTime ? 'Select start time' : 'Select end time';
-    
-    return InkWell(
-      onTap: () => _selectDateTime(isStartTime: isStartTime),
-      child: Container(
-        width: double.infinity, // Full width
-        padding: EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
+  Widget _buildStartTimeDisplay() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(12),
+        color: _startTime != null ? Colors.blue[50] : Colors.grey[50],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _startTime != null ? Icons.access_time : Icons.access_time_outlined,
+            color: _startTime != null ? Colors.blue[600] : Colors.grey[600],
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Start Time (Auto-set when feeder selected)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _startTime != null ? Colors.blue[600] : Colors.grey[600],
+                  ),
+                ),
+                Text(
+                  _startTime != null
+                      ? '${_startTime!.day}/${_startTime!.month}/${_startTime!.year} ${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
+                      : 'Will be set to current time when feeder is selected',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: _startTime != null ? Colors.black : Colors.grey,
+                    fontWeight: _startTime != null ? FontWeight.w500 : FontWeight.normal,
+                    fontStyle: _startTime == null ? FontStyle.italic : FontStyle.normal,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            _startTime != null ? Icons.check_circle : Icons.info_outline,
+            color: _startTime != null ? Colors.green[400] : Colors.blue[400],
+            size: 20,
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildDurationInputs() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Duration', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        SizedBox(height: 8),
+        Row(
           children: [
-            Icon(Icons.access_time, color: Colors.grey[600]),
-            SizedBox(width: 8),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  Text(
-                    selectedTime != null
-                        ? '${selectedTime.day}/${selectedTime.month}/${selectedTime.year} ${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}'
-                        : placeholder,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: selectedTime != null ? Colors.black : Colors.grey,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ],
+              child: TextFormField(
+                controller: _durationHoursController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Hours',
+                  prefixIcon: Icon(Icons.schedule),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  hintText: '2',
+                ),
+                onChanged: (value) {
+                  // Validate input
+                  final hours = int.tryParse(value);
+                  if (hours != null && hours >= 0 && hours <= 24) {
+                    _calculateEndTime();
+                  }
+                },
+              ),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: TextFormField(
+                controller: _durationMinutesController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Minutes',
+                  prefixIcon: Icon(Icons.timer),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  hintText: '0',
+                ),
+                onChanged: (value) {
+                  // Validate input
+                  final minutes = int.tryParse(value);
+                  if (minutes != null && minutes >= 0 && minutes < 60) {
+                    _calculateEndTime();
+                  }
+                },
               ),
             ),
           ],
         ),
+      ],
+    );
+  }
+  
+  Widget _buildEndTimeDisplay() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.grey[50],
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.access_time_filled, color: Colors.grey[600]),
+          SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'End Time (Calculated)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                Text(
+                  _endTime != null
+                      ? '${_endTime!.day}/${_endTime!.month}/${_endTime!.year} ${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+                      : 'Will be calculated from start time + duration',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: _endTime != null ? Colors.black : Colors.grey,
+                    fontStyle: _endTime != null ? FontStyle.normal : FontStyle.italic,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -870,7 +764,24 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
   }
   
   Widget _buildLinemenList() {
-    if (_selectedSubstationId == null || _startTime == null || _endTime == null) {
+    if (_selectedSubstationId == null || _selectedFeederId == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.power, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'Please select substation and feeder\nto view available linemen',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+    
+    if (_startTime == null || _endTime == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -878,7 +789,7 @@ class _AssignLinemanScreenState extends State<AssignLinemanScreen> {
             Icon(Icons.schedule, size: 64, color: Colors.grey),
             SizedBox(height: 16),
             Text(
-              'Please select substation and schedule time\nto view available linemen',
+              'Setting up schedule...\nStart time will be set automatically',
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),

@@ -240,26 +240,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // Action buttons
                       Row(
                         children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                await SessionManager.printSessionInfo();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Session info printed to console'),
-                                    backgroundColor: Colors.blue,
-                                  ),
-                                );
-                              },
-                              icon: Icon(Icons.info),
-                              label: Text('Print Session Info'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue.shade900,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 8),
+                          // Expanded(
+                          //   child: ElevatedButton.icon(
+                          //     onPressed: () async {
+                          //       await SessionManager.printSessionInfo();
+                          //       ScaffoldMessenger.of(context).showSnackBar(
+                          //         SnackBar(
+                          //           content: Text('Session info printed to console'),
+                          //           backgroundColor: Colors.blue,
+                          //         ),
+                          //       );
+                          //     },
+                          //     icon: Icon(Icons.info),
+                          //     label: Text('Print Session Info'),
+                          //     style: ElevatedButton.styleFrom(
+                          //       backgroundColor: Colors.blue.shade900,
+                          //       foregroundColor: Colors.white,
+                          //     ),
+                          //   ),
+                          // ),
+                          // SizedBox(width: 8),
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () => _showLogoutConfirmation(context, userProfile),

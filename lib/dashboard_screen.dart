@@ -79,141 +79,142 @@ class DashboardScreen extends StatelessWidget {
           );
         },
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header section with gradient
-          Container(
-            padding: EdgeInsets.fromLTRB(24, 48, 24, 24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [primaryColor, primaryColor.withOpacity(0.7)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header section with gradient
+              Container(
+                padding: EdgeInsets.fromLTRB(24, 24, 24, 24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [primaryColor, primaryColor.withOpacity(0.7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Consumer<UserProfile>(
-                            builder: (context, userProfile, child) {
-                              return Text(
-                                'Welcome, ${userProfile.username.isNotEmpty ? userProfile.username : SessionManager.displayName}',
-                                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Consumer<UserProfile>(
+                                builder: (context, userProfile, child) {
+                                  return Text(
+                                    'Welcome, ${userProfile.username.isNotEmpty ? userProfile.username : SessionManager.displayName}',
+                                    style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                                  );
+                                },
+                              ),
+                              SizedBox(height: 8),
+                              Text('Manage and monitor feeder network operation', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                              SizedBox(height: 8),
+                              Consumer<UserProfile>(
+                                builder: (context, userProfile, child) {
+                                  return Text(
+                                    '${userProfile.utilityName.isNotEmpty ? userProfile.utilityName : SessionManager.utilityName}',
+                                    style: TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Profile Icon Button
+                        CircleAvatar(
+                          radius: 25,
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          child: IconButton(
+                            icon: Icon(Icons.person, color: Colors.white, size: 25),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => ProfileScreen()),
                               );
                             },
+                            tooltip: 'View Profile',
                           ),
-                          SizedBox(height: 8),
-                          Text('Manage and monitor feeder network operation', style: TextStyle(color: Colors.white70, fontSize: 16)),
-                          SizedBox(height: 8),
-                          Consumer<UserProfile>(
-                            builder: (context, userProfile, child) {
-                              return Text(
-                                '${userProfile.utilityName.isNotEmpty ? userProfile.utilityName : SessionManager.utilityName}',
-                                style: TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Profile Icon Button
-                    CircleAvatar(
-                      radius: 25,
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      child: IconButton(
-                        icon: Icon(Icons.person, color: Colors.white, size: 25),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => ProfileScreen()),
-                          );
-                        },
-                        tooltip: 'View Profile',
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text('Your Dashboard', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              ),
+              SizedBox(height: 16),
+              bigButton(
+                text: 'Manage Work',
+                subtext: 'View and update feeder tasks',
+                icon: Icons.settings_input_component,
+                color: manageWorkColor,
+                textColor: manageWorkTextColor,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ManageWorkScreen()));
+                },
+              ),
+              bigButton(
+                text: 'My Profile',
+                subtext: 'View account details and settings',
+                icon: Icons.account_circle,
+                color: Colors.blue.shade100,
+                textColor: Colors.blue.shade700,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen()));
+                },
+              ),
+              // Admin-only buttons with role-based access control
+              Consumer<UserProfile>(
+                builder: (context, userProfile, child) {
+                  if (!_hasAdminAccess(userProfile)) {
+                    return SizedBox.shrink(); // Hide admin buttons for non-admin users
+                  }
+                  
+                  return bigButton(
+                    text: 'Add New Device',
+                    subtext: 'Register new smart grid device',
+                    icon: Icons.add_box,
+                    color: Colors.green.shade100,
+                    textColor: Colors.green.shade700,
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => AddDeviceScreen()));
+                    },
+                  );
+                },
+              ),
+              Consumer<UserProfile>(
+                builder: (context, userProfile, child) {
+                  if (!_hasAdminAccess(userProfile)) {
+                    return SizedBox.shrink(); // Hide admin buttons for non-admin users
+                  }
+                  
+                  return bigButton(
+                    text: 'Approve / Reject',
+                    subtext: 'Approve and reject users request',
+                    icon: Icons.check_circle_outline,
+                    color: Colors.indigo.shade100,
+                    textColor: Colors.indigo.shade700,
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => ApproveRejectScreen()));
+                    },
+                  );
+                },
+              ),
+              // Bottom padding to account for FAB and provide breathing room
+              SizedBox(height: 100),
+            ],
           ),
-          SizedBox(height: 40),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text('Your Dashboard', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-          ),
-          SizedBox(height: 32),
-         bigButton(
-  text: 'Manage Work',
-  subtext: 'View and update feeder tasks',
-  icon: Icons.settings_input_component,
-  color: manageWorkColor,
-  textColor: manageWorkTextColor,
-  onTap: () {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => ManageWorkScreen()));
-  },
-),
-
-bigButton(
-  text: 'My Profile',
-  subtext: 'View account details and settings',
-  icon: Icons.account_circle,
-  color: Colors.blue.shade100,
-  textColor: Colors.blue.shade700,
-  onTap: () {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen()));
-  },
-),
-
-// Admin-only buttons with role-based access control
-Consumer<UserProfile>(
-  builder: (context, userProfile, child) {
-    if (!_hasAdminAccess(userProfile)) {
-      return SizedBox.shrink(); // Hide admin buttons for non-admin users
-    }
-    
-    return bigButton(
-      text: 'Add New Device',
-      subtext: 'Register new smart grid device',
-      icon: Icons.add_box,
-      color: Colors.green.shade100,
-      textColor: Colors.green.shade700,
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => AddDeviceScreen()));
-      },
-    );
-  },
-),
-
-Consumer<UserProfile>(
-  builder: (context, userProfile, child) {
-    if (!_hasAdminAccess(userProfile)) {
-      return SizedBox.shrink(); // Hide admin buttons for non-admin users
-    }
-    
-    return bigButton(
-      text: 'Approve / Reject',
-      subtext: 'Approve and reject users request',
-      icon: Icons.check_circle_outline,
-      color: Colors.indigo.shade100,
-      textColor: Colors.indigo.shade700,
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => ApproveRejectScreen()));
-      },
-    );
-  },
-),
-
-          SizedBox(height: 80),
-        ],
+        ),
       ),
     );
   }

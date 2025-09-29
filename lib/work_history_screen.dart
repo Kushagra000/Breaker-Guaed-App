@@ -448,8 +448,7 @@ class _WorkHistoryScreenState extends State<WorkHistoryScreen> {
                   ),
                 ),
                 SizedBox(height: 12),
-                _buildInfoRow(Icons.supervisor_account, 'SSO', shutdown.sso),
-                _buildInfoRow(Icons.engineering, 'JE', shutdown.je),
+                _buildInfoRow(Icons.supervisor_account, 'Assigned By', shutdown.sso),
                 if (shutdown.linemen.isNotEmpty) ...[
                   SizedBox(height: 8),
                   Text(

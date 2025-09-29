@@ -131,7 +131,7 @@ class ShutdownData {
       substationId: json['substation_id'] ?? 0,
       feederNumber: json['feeder_number'] ?? '',
       feederName: json['feeder_name'] ?? '',
-      sso: json['sso'] ?? '',
+      sso: json['created_by'] ?? '',
       je: json['je'] ?? '',
       utilityId: json['utility_id'] ?? 0,
       linemen: (json['linemen'] as List<dynamic>? ?? [])

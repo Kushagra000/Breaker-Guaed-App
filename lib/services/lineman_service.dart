@@ -1,5 +1,6 @@
 // services/lineman_service.dart
 import 'dart:convert';
+import 'package:breaker_guard/models/user_management_model.dart';
 import 'package:http/http.dart' as http;
 import 'session_manager.dart';
 import 'auth_service.dart';
@@ -404,8 +405,6 @@ class LinemanService {
     required String purpose,
     required int? substationId,
     required int? feederId,
-    required int? ssoId,
-    required int? jeId,
     required List<int> selectedLinemenIds,
     required DateTime? startTime,
     required DateTime? endTime,
@@ -422,14 +421,6 @@ class LinemanService {
 
     if (feederId == null || feederId <= 0) {
       errors['feeder'] = 'Please select a feeder';
-    }
-
-    if (ssoId == null || ssoId <= 0) {
-      errors['sso'] = 'Please select an SSO';
-    }
-
-    if (jeId == null || jeId <= 0) {
-      errors['je'] = 'Please select a JE';
     }
 
     if (selectedLinemenIds.isEmpty) {
@@ -450,9 +441,9 @@ class LinemanService {
       }
       
       final now = DateTime.now();
-      if (startTime.isBefore(now)) {
-        errors['startTime'] = 'Start time must be in the future';
-      }
+      // if (startTime.isBefore(now)) {
+      //   errors['startTime'] = 'Start time must be in the future';
+      // }
     }
 
     return errors;
@@ -730,6 +721,7 @@ class LinemanService {
     formParts.add('purpose=${Uri.encodeComponent(request.purpose)}');
     formParts.add('substation=${Uri.encodeComponent(request.substationId.toString())}');
     formParts.add('shutdown_count=${Uri.encodeComponent(request.shutdowns.length.toString())}');
+    formParts.add('assigned_by=${Uri.encodeComponent(request.assignedBy)}');  
     
     // Add CSRF token if available
     if (authHeaders.containsKey('X-CSRFToken')) {
@@ -742,8 +734,6 @@ class LinemanService {
       final index = i + 1; // API expects 1-based indexing
       
       formParts.add('shutdowns%5B${index}%5D%5Bfeeder%5D=${Uri.encodeComponent(shutdown.feederId.toString())}');
-      formParts.add('shutdowns%5B${index}%5D%5Bofficer%5D=${Uri.encodeComponent(shutdown.ssoName)}');
-      formParts.add('shutdowns%5B${index}%5D%5Bje%5D=${Uri.encodeComponent(shutdown.jeName)}');
       formParts.add('shutdowns%5B${index}%5D%5Bstart%5D=${Uri.encodeComponent(shutdown.startTime)}');
       formParts.add('shutdowns%5B${index}%5D%5Bend%5D=${Uri.encodeComponent(shutdown.endTime)}');
       
@@ -755,14 +745,14 @@ class LinemanService {
     
     final formBody = formParts.join('&');
     
-    print('=== CUSTOM FORM BODY DEBUG ===');
+    print('=== CUSTOM FORM BODY DEBUG (No SSO/JE) ===');
     print('Form parts count: ${formParts.length}');
     print('Purpose: ${request.purpose}');
     print('Substation ID: ${request.substationId}');
     print('Shutdown count: ${request.shutdowns.length}');
     for (int i = 0; i < request.shutdowns.length; i++) {
       final shutdown = request.shutdowns[i];
-      print('Shutdown ${i + 1}: Feeder=${shutdown.feederId}, SSO=${shutdown.ssoName}, JE=${shutdown.jeName}, Linemen=${shutdown.linemenIds}');
+      print('Shutdown ${i + 1}: Feeder=${shutdown.feederId}, Linemen=${shutdown.linemenIds}');
     }
     print('Form body preview: ${formBody.substring(0, formBody.length.clamp(0, 200))}...');
     print('=============================');
