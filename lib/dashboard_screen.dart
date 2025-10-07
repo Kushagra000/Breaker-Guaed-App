@@ -5,6 +5,7 @@ import 'manage_work_screen.dart';
 import 'add_device_screen.dart';
 import 'approve_reject_screen.dart';
 import 'profile_screen.dart';
+import 'activity_logs_screen.dart';
 import 'user_profile_provider.dart';
 import 'services/session_manager.dart';
 
@@ -163,16 +164,16 @@ class DashboardScreen extends StatelessWidget {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => ManageWorkScreen()));
                 },
               ),
-              bigButton(
-                text: 'My Profile',
-                subtext: 'View account details and settings',
-                icon: Icons.account_circle,
-                color: Colors.blue.shade100,
-                textColor: Colors.blue.shade700,
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen()));
-                },
-              ),
+              // bigButton(
+              //   text: 'My Profile',
+              //   subtext: 'View account details and settings',
+              //   icon: Icons.account_circle,
+              //   color: Colors.blue.shade100,
+              //   textColor: Colors.blue.shade700,
+              //   onTap: () {
+              //     Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen()));
+              //   },
+              // ),
               // Admin-only buttons with role-based access control
               Consumer<UserProfile>(
                 builder: (context, userProfile, child) {
@@ -206,6 +207,24 @@ class DashboardScreen extends StatelessWidget {
                     textColor: Colors.indigo.shade700,
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => ApproveRejectScreen()));
+                    },
+                  );
+                },
+              ),
+              Consumer<UserProfile>(
+                builder: (context, userProfile, child) {
+                  if (!_hasAdminAccess(userProfile)) {
+                    return SizedBox.shrink(); // Hide admin buttons for non-admin users
+                  }
+                  
+                  return bigButton(
+                    text: 'Activity Logs',
+                    subtext: 'View system activity and audit logs',
+                    icon: Icons.history,
+                    color: Colors.purple.shade100,
+                    textColor: Colors.purple.shade700,
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => ActivityLogsScreen()));
                     },
                   );
                 },
